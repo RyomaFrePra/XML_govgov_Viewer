@@ -36,32 +36,18 @@ async function handleDrop(event) {
             const xml = await loadXMLDoc(xmlFile);
             const xsl = await loadXMLDoc(xslFile);
 
-            console.log("Loaded XSL:", xsl);
-
-            if (window.ActiveXObject || "ActiveXObject" in window) {
-                // Internet Explorer モード
-                const ex = xml.transformNode(xsl);
-                document.getElementById("content").innerHTML = ex;
-            } else if (document.implementation && document.implementation.createDocument) {
-                try {
-                    const xsltProcessor = new XSLTProcessor();
-                    xsltProcessor.importStylesheet(xsl);
-                    const resultDocument = xsltProcessor.transformToFragment(xml, document);
-
-                    // `innerHTML = ""` を使用せず要素単位で削除
-                    const content = document.getElementById("content");
-                    while (content.firstChild) {
-                        content.removeChild(content.firstChild);
-                    }
-
-                    // `DocumentFragment` を文字列化して `innerHTML` に適用
-                    const serializer = new XMLSerializer();
-                    content.innerHTML = serializer.serializeToString(resultDocument);
-
-                } catch (xsltError) {
-                    console.error("XSLT Processing Error:", xsltError);
-                }
+            // SaxonJS をロード
+            if (typeof SaxonJS === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://www.saxonica.com/SaxonJS/SaxonJS2.js'; // SaxonJS のパス
+                script.onload = () => {
+                    transformWithSaxonJS(xml, xsl);
+                };
+                document.head.appendChild(script);
+            } else {
+                transformWithSaxonJS(xml, xsl);
             }
+
         } catch (error) {
             console.error("Error loading XML or XSL:", error);
             alert("XML/XSLの読み込みまたは処理に失敗しました。");
@@ -70,6 +56,28 @@ async function handleDrop(event) {
         alert("XMLファイルとXSLファイルの両方をアップロードしてください。");
     }
 }
+
+function transformWithSaxonJS(xml, xsl) {
+    try {
+        // SaxonJS の XSLTProcessor を作成
+        const xsltProcessor = SaxonJS.XSLT.createProcessor();
+
+        // XSLT スタイルシートをロード
+        xsltProcessor.setStylesheet(xsl);
+
+        // XML ドキュメントを変換
+        const result = xsltProcessor.transform(xml);
+
+        // 結果を HTML に挿入
+        const content = document.getElementById("content");
+        content.innerHTML = result.toString();
+
+    } catch (xsltError) {
+        console.error("XSLT Processing Error:", xsltError);
+    }
+}
+
+// ... (loadXMLDoc関数、handleDragOver関数、addEventListenerの処理は変更なし)
 
 function handleDragOver(event) {
     event.preventDefault();
