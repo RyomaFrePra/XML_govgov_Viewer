@@ -39,6 +39,7 @@ async function handleDrop(event) {
             console.log("Loaded XSL:", xsl);
 
             if (window.ActiveXObject || "ActiveXObject" in window) {
+                // Internet Explorer モード
                 const ex = xml.transformNode(xsl);
                 document.getElementById("content").innerHTML = ex;
             } else if (document.implementation && document.implementation.createDocument) {
@@ -46,10 +47,17 @@ async function handleDrop(event) {
                     const xsltProcessor = new XSLTProcessor();
                     xsltProcessor.importStylesheet(xsl);
                     const resultDocument = xsltProcessor.transformToFragment(xml, document);
-                    
+
+                    // `innerHTML = ""` を使用せず要素単位で削除
                     const content = document.getElementById("content");
-                    content.textContent = ""; // 以前の内容をクリア
-                    content.appendChild(resultDocument); // XSLT適用後のコンテンツを追加
+                    while (content.firstChild) {
+                        content.removeChild(content.firstChild);
+                    }
+
+                    // `DocumentFragment` を文字列化して `innerHTML` に適用
+                    const serializer = new XMLSerializer();
+                    content.innerHTML = serializer.serializeToString(resultDocument);
+
                 } catch (xsltError) {
                     console.error("XSLT Processing Error:", xsltError);
                 }
