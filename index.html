@@ -1,24 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XML and XSLT Viewer</title>
     <style>
-        #drop_zone {
-            border: 2px dashed #ccc;
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #drop-area {
             width: 100%;
-            padding: 50px;
+            height: 200px;
+            border: 2px dashed #cccccc;
             text-align: center;
-            color: #ccc;
-            margin: 20px 0;
+            line-height: 200px;
+            font-size: 18px;
+            color: #888;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <h1>XML and XSLT Viewer</h1>
-    <div id="drop_zone">Drop files here</div>
-    <div id="content"></div>
-    <script src="script.js"></script>
+    <div id="drop-area">
+        XMLファイルとXSLファイルをここにドラッグアンドドロップしてください
+    </div>
+    <div id="result"></div>
+
+    <script src="script.js"></script>  <!-- JavaScriptを外部ファイルとして読み込む -->
 </body>
 </html>
