@@ -1,106 +1,91 @@
-const dropArea = document.getElementById('drop-area');
-const resultDiv = document.getElementById('result');
-
-dropArea.addEventListener('dragover', function (e) {
-    e.preventDefault();
-    dropArea.style.backgroundColor = '#f0f0f0';
-});
-
-dropArea.addEventListener('dragleave', function () {
-    dropArea.style.backgroundColor = '#fff';
-});
-
-dropArea.addEventListener('drop', function (e) {
-    e.preventDefault();
-    dropArea.style.backgroundColor = '#fff';
-
-    const files = e.dataTransfer.files;
-    if (files.length !== 2) {
-        resultDiv.textContent = 'XMLファイルとXSLファイルをセットでドラッグアンドドロップしてください。';
-        return;
-    }
-
-    let xmlFile, xslFile;
-    for (let file of files) {
-        if (file.name.endsWith('.xml')) xmlFile = file;
-        else if (file.name.endsWith('.xsl')) xslFile = file;
-    }
-
-    if (!xmlFile || !xslFile) {
-        resultDiv.textContent = 'XMLファイルとXSLファイルが正しくセットで指定されていません。';
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = function (event) {
-        let xmlText = event.target.result;
-
-        // ✅ xml-stylesheet宣言を削除（ファイル自体は変更しない）
-        xmlText = xmlText.replace(/<\?xml-stylesheet[^>]*\?>/i, '');
-
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-        readXSL(xslFile, xmlDoc);
-    };
-    reader.readAsText(xmlFile);
-});
-
-function readXSL(xslFile, xmlDoc) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-        const xslText = event.target.result;
-        const parser = new DOMParser();
-        const xslDoc = parser.parseFromString(xslText, 'application/xml');
-        applyXSLT(xmlDoc, xslDoc);
-    };
-    reader.readAsText(xslFile);
+function loadXMLDoc(file) {
+  return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(e.target.result, "application/xml");
+          resolve(xmlDoc);
+      };
+      reader.onerror = function (e) {
+          reject(e);
+      };
+      reader.readAsText(file);
+  });
 }
 
-function applyXSLT(xmlDoc, xslDoc) {
-    const xsltProcessor = new XSLTProcessor();
-    xsltProcessor.importStylesheet(xslDoc);
+// 強制的に改行スタイルを適用する関数
+function forceWrapStyles() {
+    const contentDiv = document.getElementById("content");
+    // content内のすべての要素を取得
+    const allElements = contentDiv.querySelectorAll("*");
 
-    let resultFragment = null;
-
-    try {
-        resultFragment = xsltProcessor.transformToFragment(xmlDoc, document);
-    } catch (err) {
-        console.error('transformToFragment エラー:', err);
-    }
-
-    resultDiv.innerHTML = '';
-
-    if (resultFragment && resultFragment.nodeType) {
-        // 正常にNodeが返った場合
-        resultDiv.appendChild(resultFragment);
-        convertHTML(resultDiv);
-    } else {
-        // transformToFragmentがnullのとき、文字列変換で再試行
-        try {
-            const resultDoc = xsltProcessor.transformToDocument(xmlDoc);
-            const htmlString = new XMLSerializer().serializeToString(resultDoc);
-            resultDiv.innerHTML = htmlString;
-            convertHTML(resultDiv);
-        } catch (err2) {
-            console.error('transformToDocument エラー:', err2);
-            resultDiv.textContent = 'XSLT変換に失敗しました。';
+    allElements.forEach(el => {
+        // 1. スタイルプロパティに 'important' 付きで強制設定
+        el.style.setProperty("white-space", "normal", "important");
+        el.style.setProperty("word-break", "break-all", "important");
+        el.style.setProperty("overflow-wrap", "break-word", "important");
+        
+        // 2. 古いHTML属性（nowrap）があれば削除
+        if (el.hasAttribute("nowrap")) {
+            el.removeAttribute("nowrap");
         }
-    }
+        
+        // 3. テーブルセルの場合、幅固定で文字が溢れるのを防ぐ
+        if (el.tagName === "TD" || el.tagName === "TH") {
+             el.style.setProperty("word-wrap", "break-word", "important");
+        }
+    });
 }
 
-// HTMLエンティティを適切に変換する関数
-function convertHTML(element) {
-    element.innerHTML = element.innerHTML
-        .replace(/&lt;br\/&gt;/g, '<br>')
-        .replace(/&lt;a\s+href="([^"]+)"&gt;/g, '<a href="$1">')
-        .replace(/&lt;\/a&gt;/g, '</a>')
-        .replace(/<pre\s+class="normal">/g, '<div class="normal">')
-        .replace(/<\/pre>/g, '</div>')
-        .replace(/<pre>/g, '<div>')
-        .replace(/<\/pre>/g, '</div>');
+async function handleDrop(event) {
+  event.preventDefault();
+  const files = event.dataTransfer.files;
+  const xmlFiles = [];
+  const xslFiles = [];
 
-    element.style.margin = '0';
-    element.style.padding = '0';
-    element.style.border = 'none';
-    element.style.boxSizing = 'border-box';
+  for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.name.endsWith(".xml")) {
+          xmlFiles.push(file);
+      } else if (file.name.endsWith(".xsl")) {
+          xslFiles.push(file);
+      }
+  }
+
+  if (xmlFiles.length > 0 && xslFiles.length > 0) {
+      try {
+          const xml = await loadXMLDoc(xmlFiles[0]);
+          const xsl = await loadXMLDoc(xslFiles[0]);
+          
+          const contentDiv = document.getElementById("content");
+          contentDiv.innerHTML = ""; // クリア
+
+          if (window.ActiveXObject || "ActiveXObject" in window) {
+              // IE Legacy support
+              const ex = xml.transformNode(xsl);
+              contentDiv.innerHTML = ex;
+              // 変換後にスタイル修正を実行
+              forceWrapStyles();
+          } else if (document.implementation && document.implementation.createDocument) {
+              const xsltProcessor = new XSLTProcessor();
+              xsltProcessor.importStylesheet(xsl);
+              const resultDocument = xsltProcessor.transformToFragment(xml, document);
+              contentDiv.appendChild(resultDocument);
+              
+              // 変換後にスタイル修正を実行
+              forceWrapStyles();
+          }
+      } catch (error) {
+          console.error("Error displaying XML:", error);
+      }
+  } else {
+      alert("Please drop a folder containing both XML and XSL files.");
+  }
 }
+
+function handleDragOver(event) {
+  event.preventDefault();
+}
+
+document.getElementById('drop_zone').addEventListener('dragover', handleDragOver, false);
+document.getElementById('drop_zone').addEventListener('drop', handleDrop, false);
